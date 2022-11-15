@@ -1,0 +1,255 @@
+﻿参考教程：
+https://uzbox.com/tech/naiveproxy.html
+https://www.cnblogs.com/zouxlin3/p/14746707.html
+https://docs.cloudreve.org/getting-started/install
+
+1.检查开启BBR
+# 第一项检查：
+root@topvps:~# sysctl net.ipv4.tcp_available_congestion_control | grep bbr
+* 若已开启bbr，结果通常为以下两种：
+net.ipv4.tcp_available_congestion_control = bbr cubic reno
+net.ipv4.tcp_available_congestion_control = reno cubic bbr
+# 第二项检查：
+root@topvps:~# sysctl net.ipv4.tcp_congestion_control | grep bbr
+* 若已开启bbr，结果如下：
+net.ipv4.tcp_congestion_control = bbr
+# 第三项检查：
+root@topvps:~# sysctl net.core.default_qdisc | grep fq
+* 若已开启bbr，结果如下：
+net.core.default_qdisc = fq
+# 第四项检查：
+root@topvps:~# lsmod | grep bbr
+* 若已开启bbr，结果可能如下。并不是所有的 VPS 都会有此返回值，若没有也属正常。
+tcp_bbr                20480  2
+
+如果没有开启BBR,如下为开启命令：
+bash -c 'echo "net.core.default_qdisc=fq" >> /etc/sysctl.conf'
+bash -c 'echo "net.ipv4.tcp_congestion_control=bbr" >> /etc/sysctl.conf'
+sysctl -p
+
+2.安装Go
+https://go.dev/doc/install 官网，在服务器上下载go语言安装包，然后解压到 /usr/local/ 目录中。
+
+wget https://go.dev/dl/go1.19.3.linux-amd64.tar.gz
+tar -zxvf go1.19.3.linux-amd64.tar.gz -C /usr/local/
+
+go语言解压缩完毕即可，无需安装，解压缩后，在 /etc/profile 文件内添加变量。
+
+echo export PATH=$PATH:/usr/local/go/bin  >> /etc/profile
+source /etc/profile
+go version
+
+安装完毕后使用 go version 命令查看安装是否成功，能够正常显示GO语言版本，就表示已经安装成功了。
+
+3.安装Caddy
+
+a.安装xcaddy,For Debian, Ubuntu->https://github.com/caddyserver/xcaddy
+
+sudo apt install -y debian-keyring debian-archive-keyring apt-transport-https
+curl -1sLf 'https://dl.cloudsmith.io/public/caddy/xcaddy/gpg.key' | sudo gpg --dearmor -o /usr/share/keyrings/caddy-xcaddy-archive-keyring.gpg
+curl -1sLf 'https://dl.cloudsmith.io/public/caddy/xcaddy/debian.deb.txt' | sudo tee /etc/apt/sources.list.d/caddy-xcaddy.list
+sudo apt update
+sudo apt install xcaddy
+xcaddy version
+
+b.编译安装Caddy with Naiveproxy
+
+cd  /root
+xcaddy build --with github.com/caddyserver/forwardproxy@caddy2=github.com/klzgrad/forwardproxy@naive
+cp caddy /usr/bin/
+/usr/bin/caddy version
+/usr/bin/caddy list-modules
+setcap cap_net_bind_service=+ep /usr/bin/caddy
+#使用setcap命令设置 /usr/bin/caddy 可以非ROOT用户启动1024以下端口。注意：可以使用这条命令 setcap -r /usr/bin/xcaddy 清除附加权限。
+
+4.安装伪装站Cloudreve，https://github.com/cloudreve/Cloudreve/releases
+
+cd  /root
+wget https://github.com/cloudreve/Cloudreve/releases/download/3.5.3/cloudreve_3.5.3_linux_amd64.tar.gz
+tar -zxvf cloudreve_3.5.3_linux_amd64.tar.gz
+chmod +x ./cloudreve
+
+# 启动 Cloudreve记录用户密码及测试访问
+./cloudreve
+Cloudreve 在首次启动时，会创建初始管理员账号，请注意保管管理员密码，此密码只会在首次启动时出现。如果您忘记初始管理员密码，需要删除同级目录下的cloudreve.db，重新启动主程序以初始化新的管理员账户。
+Cloudreve 默认会监听5212端口。你可以在浏览器中访问http://服务器IP:5212进入 Cloudreve。
+
+#测试成功后退出，配置服务自启
+* 编辑配置文件
+vim /usr/lib/systemd/system/cloudreve.service
+* 将下文 PATH_TO_CLOUDREVE 更换为程序所在目录：
+---------------------------------------------------------------------------
+[Unit]
+Description=Cloudreve
+Documentation=https://docs.cloudreve.org
+After=network.target
+After=mysqld.service
+Wants=network.target
+
+[Service]
+WorkingDirectory=/PATH_TO_CLOUDREVE
+ExecStart=/PATH_TO_CLOUDREVE/cloudreve
+Restart=on-abnormal
+RestartSec=5s
+KillMode=mixed
+
+StandardOutput=null
+StandardError=syslog
+
+[Install]
+WantedBy=multi-user.target
+-----------------------------------------------------------------------------
+# 更新配置
+systemctl daemon-reload
+# 启动服务
+systemctl start cloudreve
+# 设置开机启动
+systemctl enable cloudreve
+# 停止服务
+systemctl stop cloudreve
+# 重启服务
+systemctl restart cloudreve
+# 查看状态
+systemctl status cloudreve
+
+4.配置 caddy
+
+首先，将域名A记录解析到所在服务器的IP地址上。然后申请SSL域名证书。
+#新建存放Caddyfile的目录
+mkdir /etc/caddy/
+#使用VI命令在/etc/caddy/目录中，新建Caddyfile配置文件
+vi /etc/caddy/Caddyfile
+
+使用下面的模板，进行如下更改：
+
+替换yourname为您选择的用于 NaiveProxy 身份验证的用户名。替换 pass 为您的密码。用您的域名和主机名替换 example.com(前面有一空格要保留），用您的实际电子邮件地址替换youremail@example.com用来接收 Let's Encrypt 通知
+caddy在服务器上有两种建立代理网站的方式，一种是将web网站文件保存在服务器上，另外一种是反向代理到其它网站。如果想建立多用户版Naive，可以将 forward_proxy 模块复制。将basic_auth中的用户密码修改成另外一个就可以了。
+
+将域名反向代理到其它网站地址：
+----------------------------------------------------
+{
+https_port 8443
+}
+:8443, example.com:8443
+tls keungking@gmail.com
+route {
+  forward_proxy {
+    basic_auth yourname pass
+    hide_ip
+    hide_via
+    probe_resistance
+  }
+   reverse_proxy 127.0.0.1:5212 {
+    header_up Host {upstream_hostport}
+  }
+}
+-----------------------------------------------------
+
+#格式化配置文件
+caddy fmt --overwrite /etc/caddy/Caddyfile
+#不执行这一条命令在运行程序时会报错：failed to sufficiently increase receive buffer size 
+sudo sysctl -w net.core.rmem_max=2500000
+#启动配置文件并测试访问
+caddy run --config /etc/caddy/Caddyfile
+
+#测试成功后退出，配置服务自启
+* 编辑配置文件
+vi /etc/systemd/system/naive.service
+---------------------------------------------------------------------------------
+[Unit]
+Description=Caddy
+Documentation=https://caddyserver.com/docs/
+After=network.target network-online.target
+Requires=network-online.target
+[Service]
+Type=notify
+User=root
+Group=root
+ExecStart=/usr/bin/caddy run --environ --config /etc/caddy/Caddyfile
+ExecReload=/usr/bin/caddy reload --config /etc/caddy/Caddyfile
+TimeoutStopSec=5s
+LimitNOFILE=1048576
+LimitNPROC=512
+PrivateTmp=true
+ProtectSystem=full
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+[Install]
+WantedBy=multi-user.target
+------------------------------------------------------------------------------------
+
+#daemon-reload 加载新的 unit 配置文件
+systemctl daemon-reload
+#enable 创建 unit 配置文件的软链
+systemctl enable naive
+#start 启动配置文件
+systemctl start naive
+#status 查看配置文件当前状态
+systemctl status naive
+
+#检查 Caddy 是否正在侦听端口80和443：
+ss -tulpn | grep caddy
+
+5.修改SSH端口
+
+vi /etc/ssh/sshd_config
+
+查找Port 22，有可能 Port 22 是注释的(即前面有#号，有的话删掉 # 号)。在 Port 22 下面添加一行 Port 3322  其中3322为你更改SSH后的端口。
+这里建议先保留原来的22端口，待新的SSH端口测试正常工作后再删掉原Port 22 端口行。修改完成后保存。
+重启SSH服务器命令：
+
+systemctl restart sshd
+
+如果没有报错的话就生效了，可以 ss -ntl 或 netstat -ntl 查看一下端口。
+
+
+6.安装Docker版Speedtest Html
+————————————————
+Ubuntu主机名的获取:
+路径 --- vi /etc/hostname文件中获取主机名
+将/etc/hosts文件中的主机名改
+r127.0.0.1  hostname
+保存退出即可！
+————————————————
+安装Docker
+sudo apt install docker.io
+sudo systemctl enable --now docker
+sudo systemctl status docker
+sudo docker run hello-world
+
+安装Speedtest容器镜像,
+https://github.com/BadApple9/speedtest-x/blob/master/README_CN.md
+
+docker pull badapple9/speedtest-x
+docker run -d -p 8444:80 --restart=always -it -e MAX_LOG_COUNT=50 badapple9/speedtest-x
+
+管理Docker容器
+docker container ls -a
+docker container stop 容器ID
+docker container start 容器ID
+docker container restart 容器ID
+docker container rm 容器ID
+
+镜像管理
+docker image ls
+docker image rm 镜像ID
+
+可选修改docker内的html文件 
+进入容器：docker exec -it 容器ID /bin/bash
+1.将容器中的文件拷贝出来:docker cp 容器ID:/var/www/html/index.html /root/index.html
+2.用Vim(用:set nu开启行号显示） 修改文件6及198行：SpeedTest-X
+3.将容器中的文件拷贝回去:
+docker cp /root/index.html 容器ID:/var/www/html/index.html
+docker cp /root/index.html 容器ID:/speedtest/index.html
+4.保存修改为新镜像：docker commit 容器ID badapple9/speedtest-x:custv1
+查看修改记录：docker history badapple9/speedtest-x:custv1
+5.先停止再删除旧容器：docker container stop 旧容器ID   -》  docker container rm 旧容器ID
+6.加载新容器镜像：
+docker run -d -p 8444:80 --restart=always -it -e MAX_LOG_COUNT=50 badapple9/speedtest-x:custv1
+
+
+docker cp 7b98ed22ab43:/var/www/html/index.html /root/index.html
+docker cp /root/index.html 7b98ed22ab43:/var/www/html/index.html
+docker cp /root/index.html 7b98ed22ab43:/speedtest/index.html
+docker commit 7b98ed22ab43 badapple9/speedtest-x:custv1
+docker container stop 7b98ed22ab43
+docker container rm 7b98ed22ab43 
