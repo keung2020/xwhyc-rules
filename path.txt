@@ -8,6 +8,10 @@ https://adbyby.coding.net/p/xwhyc-rules/d/xwhyc-rules/git/raw/master/
 https://raw.githubusercontent.com/keung2020/xwhyc-rules/master/mv.txt
 https://raw.githubusercontent.com/keung2020/xwhyc-rules/master/ad3.txt
 
+https://github.com/cjx82630/cjxlist->https://raw.githubusercontent.com/cjx82630/cjxlist
+https://github.com/xinggsf/Adblock-Plus-Rule->https://raw.githubusercontent.com/xinggsf/Adblock-Plus-Rule
+https://fanboy.co.nz/r/fanboy-ultimate.txt
+
 
 sed -i 's/https:\/\/adbyby\.coding\.net\/p\/xwhyc-rules\/d\/xwhyc-rules\/git\/raw\/master\//https:\/\/raw.githubusercontent.com\/keung2020\/xwhyc-rules\/master\//g' /tmp/adbyby/adbybyupdate.sh
 sed -i 's/https:\/\/adbyby\.coding\.net\/p\/xwhyc-rules\/d\/xwhyc-rules\/git\/raw\/master\//https:\/\/raw.githubusercontent.com\/keung2020\/xwhyc-rules\/master\//g' /tmp/adbyby/adupdate.sh
