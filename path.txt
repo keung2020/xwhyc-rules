@@ -5,8 +5,8 @@ feeds/luci/applications/luci-app-adbyby-plus/root/usr/share/adbyby/admem.sh
 
 https://adbyby.coding.net/p/xwhyc-rules/d/xwhyc-rules/git/raw/master/
 
-https://raw.githubusercontent.com/keung2020/xwhyc-rules/master/mv.txt
-https://raw.githubusercontent.com/keung2020/xwhyc-rules/master/ad3.txt
+https://raw.githubusercontent.com/keung2020/anti-AD/master/adblock-for-dnsmasq.conf
+https://raw.githubusercontent.com/keung2020/adblocklist/master/ad.txt
 
 https://github.com/cjx82630/cjxlist->https://raw.githubusercontent.com/cjx82630/cjxlist
 https://github.com/xinggsf/Adblock-Plus-Rule->https://raw.githubusercontent.com/xinggsf/Adblock-Plus-Rule
